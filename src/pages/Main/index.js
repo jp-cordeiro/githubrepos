@@ -1,23 +1,48 @@
-import React, {useState} from 'react';
-import {Keyboard} from 'react-native';
-
+import React, {useState, useEffect} from 'react';
+import {Keyboard, ActivityIndicator} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AsyncStorage from '@react-native-community/async-storage';
 
 import api from '../../service/api';
-import {Container, Form, Input, SubmitButton} from './styles';
+import {
+  Container,
+  Form,
+  Input,
+  SubmitButton,
+  List,
+  User,
+  Avatar,
+  Name,
+  Bio,
+  ProfileButton,
+  ProfileButtonText,
+} from './styles';
 
 const Main = () => {
   const [newUser, setNewUser] = useState('');
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  function findUser() {
+    const exists = users.find((user) => user.login === newUser);
+    return exists;
+  }
 
   async function handleAddUser() {
     console.tron.log(newUser);
+    setLoading(true);
 
     const response = await api.get(`/users/${newUser}`);
 
     const {data} = response;
 
-    setUsers([
+    setLoading(false);
+
+    if (findUser()) {
+      return;
+    }
+
+    const allUsers = [
       ...users,
       {
         name: data.name,
@@ -25,11 +50,28 @@ const Main = () => {
         bio: data.bio,
         avatar: data.avatar_url,
       },
-    ]);
+    ];
+
+    setUsers(allUsers);
     setNewUser('');
+    await AsyncStorage.setItem('users', JSON.stringify(allUsers));
+    const usersStorage = await AsyncStorage.getItem('users');
+    console.tron.log(usersStorage);
 
     Keyboard.dismiss();
   }
+
+  useEffect(() => {
+    async function loadUsers() {
+      let usersStorage = await AsyncStorage.getItem('users');
+      if (usersStorage) {
+        usersStorage = JSON.parse(usersStorage);
+
+        setUsers(usersStorage);
+      }
+    }
+    loadUsers();
+  }, []);
 
   return (
     <Container>
@@ -41,10 +83,29 @@ const Main = () => {
           value={newUser}
           onChangeText={(text) => setNewUser(text)}
         />
-        <SubmitButton onPress={handleAddUser}>
-          <Icon name="add" size={20} color="#FFF" />
+        <SubmitButton loading={loading} onPress={handleAddUser}>
+          {loading ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Icon name="add" size={20} color="#FFF" />
+          )}
         </SubmitButton>
       </Form>
+      <List
+        data={users}
+        keyExtractor={(user) => user.login}
+        renderItem={({item}) => (
+          <User>
+            <Avatar source={{uri: item.avatar}} />
+            <Name>{item.name}</Name>
+            <Bio>{item.bio}</Bio>
+
+            <ProfileButton onPress={() => {}}>
+              <ProfileButtonText>Ver perfil</ProfileButtonText>
+            </ProfileButton>
+          </User>
+        )}
+      />
     </Container>
   );
 };
